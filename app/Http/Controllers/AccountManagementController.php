@@ -2,188 +2,150 @@
 
 namespace App\Http\Controllers;
 
+use App\Models\Garment;
+use App\Models\Order;
 use App\Models\User;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Auth;
+use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Hash;
-use Illuminate\Support\Facades\Schema;
 
 class AccountManagementController extends Controller
 {
-    private function phoneColumn(): ?string
-    {
-        foreach (['phone', 'phone_number', 'contact'] as $col) {
-            if (Schema::hasColumn('users', $col)) {
-                return $col;
-            }
-        }
-        return null;
-    }
-
-    private function passwordColumn(): string
-    {
-        return Schema::hasColumn('users', 'password_hash') ? 'password_hash' : 'password';
-    }
-
-    private function activeColumn(): ?string
-    {
-        if (Schema::hasColumn('users', 'is_active')) {
-            return 'is_active';
-        }
-        if (Schema::hasColumn('users', 'status')) {
-            return 'status';
-        }
-        return null;
-    }
-
-    private function isUserActive(User $user, ?string $activeCol): bool
-    {
-        if ($activeCol === 'is_active') {
-            return (bool) $user->is_active;
-        }
-        if ($activeCol === 'status') {
-            return strtolower((string) $user->status) === 'active';
-        }
-        return true;
-    }
-
     public function index()
     {
-        $accounts = User::whereIn('role', ['owner', 'staff'])
-            ->orderByRaw("CASE WHEN role = 'owner' THEN 0 ELSE 1 END")
-            ->orderBy('full_name')
+        $accounts = User::orderByRaw("FIELD(role, 'owner', 'staff', 'customer')")
+            ->orderByDesc('user_id')
             ->get();
 
-        $staffMembers = $accounts;
-        $hasUsername = Schema::hasColumn('users', 'username');
-        $hasEmail = Schema::hasColumn('users', 'email');
-        $phoneCol = $this->phoneColumn();
-        $activeCol = $this->activeColumn();
+        $ownerCount = User::where('role', 'owner')->count();
 
-        return view('owner.staff.index', compact(
-            'accounts',
-            'staffMembers',
-            'hasUsername',
-            'hasEmail',
-            'phoneCol',
-            'activeCol'
-        ));
+        return view('owner.staff.index', compact('accounts', 'ownerCount'));
     }
 
     public function storeStaff(Request $request)
     {
-        $hasUsername = Schema::hasColumn('users', 'username');
-        $hasEmail = Schema::hasColumn('users', 'email');
-        $phoneCol = $this->phoneColumn();
-        $passwordCol = $this->passwordColumn();
-        $activeCol = $this->activeColumn();
+        $validated = $request->validate([
+            'full_name' => 'required|string|max:120',
+            'role'      => 'required|in:staff,owner,customer',
+            'username'  => 'nullable|string|max:60|unique:users,username',
+            'phone'     => 'required|string|max:30|unique:users,phone',
+            'email'     => 'nullable|email|max:120|unique:users,email',
+            'password'  => 'required|string|min:6|max:100',
+        ]);
 
-        $rules = [
-            'full_name' => 'required|string|max:100',
-            'role' => 'required|in:staff,owner',
-            'password' => 'required|string|min:6',
-        ];
-
-        if ($hasUsername) {
-            $rules['username'] = 'required|string|max:50|unique:users,username';
-        }
-        if ($phoneCol) {
-            $rules['phone'] = "required|string|max:20|unique:users,{$phoneCol}";
-        }
-        if ($hasEmail) {
-            $rules['email'] = 'nullable|email|max:100|unique:users,email';
+        if ($validated['role'] === 'owner' && User::where('role', 'owner')->exists()) {
+            return back()
+                ->withInput()
+                ->withErrors(['role' => 'Only one owner account is allowed. Remove any extra owner account first.']);
         }
 
-        $validated = $request->validate($rules);
-
-        $user = new User();
-        $user->full_name = trim($validated['full_name']);
-        $user->role = $validated['role'];
-
-        if ($hasUsername) {
-            $user->username = trim($validated['username']);
-        }
-        if ($phoneCol) {
-            $user->{$phoneCol} = trim($validated['phone']);
-        }
-        if ($hasEmail) {
-            $user->email = !empty($validated['email']) ? trim($validated['email']) : null;
+        if ($validated['role'] !== 'customer' && empty(trim((string) ($validated['username'] ?? '')))) {
+            return back()
+                ->withInput()
+                ->withErrors(['username' => 'Username is required for staff and owner accounts.']);
         }
 
-        $user->{$passwordCol} = Hash::make($validated['password']);
+        $phoneClean = trim($validated['phone']);
+        $username = trim((string) ($validated['username'] ?? ''));
 
-        if ($activeCol === 'is_active') {
-            $user->is_active = 1;
-        } elseif ($activeCol === 'status') {
-            $user->status = 'active';
+        if ($username === '') {
+            $baseUsername = preg_replace('/[^a-zA-Z0-9_]/', '', $phoneClean) ?: 'cust_' . time();
+            $username = $baseUsername;
+            $counter = 1;
+            while (User::where('username', $username)->exists()) {
+                $username = $baseUsername . '_' . $counter++;
+            }
         }
 
-        if (Schema::hasColumn('users', 'created_by')) {
-            $user->created_by = Auth::id();
-        }
+        User::create([
+            'full_name'     => trim($validated['full_name']),
+            'role'          => $validated['role'],
+            'username'      => $username,
+            'phone'         => $phoneClean,
+            'email'         => !empty($validated['email']) ? trim($validated['email']) : null,
+            'password_hash' => Hash::make($validated['password']),
+            'status'        => 'active',
+        ]);
 
-        $user->save();
-
-        $roleLabel = ucfirst($user->role);
-
-        return back()->with('success', "{$roleLabel} account for {$user->full_name} created successfully.");
+        return redirect()
+            ->route('owner.staff.index')
+            ->with('success', ucfirst($validated['role']) . ' account created.');
     }
 
     public function toggleStaffStatus($userId)
     {
-        $user = User::whereIn('role', ['owner', 'staff'])->findOrFail($userId);
+        $account = User::where('user_id', $userId)->firstOrFail();
+        $currentUser = Auth::user();
 
-        if ((int) $user->user_id === (int) Auth::id()) {
-            return back()->withErrors(['staff' => 'You cannot deactivate your own owner account.']);
+        if ((int) $account->user_id === (int) ($currentUser->user_id ?? 0)) {
+            return back()->withErrors(['status' => 'You cannot deactivate your own active session.']);
         }
 
-        $activeCol = $this->activeColumn();
-        if (!$activeCol) {
-            return back()->withErrors(['staff' => 'Account status toggling is not configured in the users table.']);
-        }
+        $newStatus = ($account->status ?? 'active') === 'active' ? 'inactive' : 'active';
+        $account->update(['status' => $newStatus]);
 
-        $currentlyActive = $this->isUserActive($user, $activeCol);
-
-        // Prevent locking the system out by deactivating the last active owner
-        if ($user->role === 'owner' && $currentlyActive) {
-            $activeOwnersQuery = User::where('role', 'owner');
-            if ($activeCol === 'is_active') {
-                $activeOwnersQuery->where('is_active', 1);
-            } else {
-                $activeOwnersQuery->where('status', 'active');
-            }
-
-            if ($activeOwnersQuery->count() <= 1) {
-                return back()->withErrors(['staff' => 'Cannot deactivate the last remaining active owner account.']);
-            }
-        }
-
-        if ($activeCol === 'is_active') {
-            $user->is_active = $currentlyActive ? 0 : 1;
-        } else {
-            $user->status = $currentlyActive ? 'inactive' : 'active';
-        }
-
-        $user->save();
-
-        $newState = $currentlyActive ? 'deactivated' : 'activated';
-
-        return back()->with('success', ucfirst($user->role) . " account for {$user->full_name} has been {$newState}.");
+        return redirect()
+            ->route('owner.staff.index')
+            ->with('success', "Account for {$account->full_name} is now {$newStatus}.");
     }
 
     public function resetStaffPassword(Request $request, $userId)
     {
-        $request->validate([
-            'new_password' => 'nullable|string|min:6',
+        $account = User::where('user_id', $userId)->firstOrFail();
+
+        $validated = $request->validate([
+            'password' => 'required|string|min:6|max:100',
         ]);
 
-        $user = User::whereIn('role', ['owner', 'staff'])->findOrFail($userId);
-        $newPassword = trim((string) $request->input('new_password')) ?: 'Aqualine@123';
+        $account->update([
+            'password_hash' => Hash::make($validated['password']),
+        ]);
 
-        $passwordCol = $this->passwordColumn();
-        $user->{$passwordCol} = Hash::make($newPassword);
-        $user->save();
+        return redirect()
+            ->route('owner.staff.index')
+            ->with('success', "Password reset for {$account->full_name}.");
+    }
 
-        return back()->with('success', "Password reset for {$user->full_name} ({$user->role}). New password: {$newPassword}");
+    public function destroyAccount($userId)
+    {
+        $account = User::where('user_id', $userId)->firstOrFail();
+        $currentUser = Auth::user();
+        $fallbackOwnerId = $currentUser->user_id ?? $currentUser->id ?? null;
+
+        if ((int) $account->user_id === (int) ($fallbackOwnerId ?? 0)) {
+            return back()->withErrors(['delete' => 'You cannot delete your currently logged-in owner account.']);
+        }
+
+        DB::transaction(function () use ($account, $fallbackOwnerId) {
+            if ($fallbackOwnerId) {
+                DB::table('service_items')
+                    ->where('defined_by', $account->user_id)
+                    ->update(['defined_by' => $fallbackOwnerId]);
+
+                DB::table('orders')
+                    ->where('staff_id', $account->user_id)
+                    ->update(['staff_id' => $fallbackOwnerId]);
+            }
+
+            $orderNos = Order::where('customer_id', $account->user_id)->pluck('order_no');
+            if ($orderNos->isNotEmpty()) {
+                Garment::whereIn('order_no', $orderNos)->delete();
+                Order::whereIn('order_no', $orderNos)->delete();
+            }
+
+            $allPickups = TrackingController::loadAllPickupRequests();
+            $key = (string) $account->user_id;
+            if (isset($allPickups[$key])) {
+                unset($allPickups[$key]);
+                TrackingController::saveAllPickupRequests($allPickups);
+            }
+
+            $account->delete();
+        });
+
+        return redirect()
+            ->route('owner.staff.index')
+            ->with('success', "Deleted {$account->role} account: {$account->full_name}.");
     }
 }

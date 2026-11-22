@@ -94,14 +94,43 @@ class BillingController extends Controller
         return back()->with('success', "Payment of KES " . number_format($amountToPay, 2) . " recorded successfully.");
     }
 
+        public function destroyPayment($paymentId)
+{
+    DB::transaction(function () use ($paymentId) {
+        $payment = Payment::where('payment_id', $paymentId)->firstOrFail();
+        $bill = Bill::lockForUpdate()->findOrFail($payment->bill_id);
+
+        $bill->amount_paid = max(0, (float) $bill->amount_paid - (float) $payment->amount);
+
+        if ($bill->amount_paid <= 0) {
+            $bill->payment_status = 'unpaid';
+        } elseif ($bill->amount_paid < (float) $bill->total_amount) {
+            $bill->payment_status = 'partial';
+        } else {
+            $bill->payment_status = 'paid';
+        }
+
+        $bill->save();
+
+        if ($bill->payment_status !== 'paid') {
+            Receipt::where('bill_id', $bill->bill_id)->delete();
+        }
+
+        $payment->delete();
+    });
+
+    return back()->with('success', 'Payment deleted and bill balance recalculated.');
+}
+
     public function showReceipt($receiptId)
     {
         $decodedId = urldecode((string) $receiptId);
 
-        $receipt = Receipt::with(['bill.order.customer', 'bill.order.garments.serviceItem', 'bill.payments'])
-            ->where('receipt_no', $decodedId)
-            ->orWhere('bill_id', $decodedId)
-            ->firstOrFail();
+$receipt = Receipt::with(['bill.order.customer', 'bill.order.garments.serviceItem', 'bill.payments'])
+    ->where('receipt_id', $decodedId)
+    ->orWhere('receipt_no', $decodedId)
+    ->orWhere('bill_id', $decodedId)
+    ->firstOrFail();
 
         if (Auth::user()->role === 'customer' && $receipt->bill->order->customer_id !== Auth::id()) {
             abort(403, 'Unauthorized access to this receipt.');

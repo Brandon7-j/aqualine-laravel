@@ -3,111 +3,94 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Staff &amp; Owner Accounts — Aqualine Laundry</title>
+    <title>Account Management - Aqualine Owner</title>
     <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/css/bootstrap.min.css" rel="stylesheet">
 </head>
 <body class="bg-light">
-    <nav class="navbar navbar-expand-lg navbar-dark bg-primary mb-4">
-        <div class="container">
-            <a class="navbar-brand fw-bold" href="{{ route('owner.dashboard') }}">Aqualine Owner Portal</a>
-            <div class="d-flex align-items-center gap-2">
-                <a href="{{ route('owner.dashboard') }}" class="btn btn-outline-light btn-sm">Reports Dashboard</a>
-                <a href="{{ route('owner.services.index') }}" class="btn btn-outline-light btn-sm">Services &amp; Pricing</a>
-                <a href="{{ route('owner.staff.index') }}" class="btn btn-light btn-sm fw-semibold text-primary">Staff &amp; Owners</a>
-                <form action="{{ route('logout') }}" method="POST" class="d-inline m-0">
-                    @csrf
-                    <button type="submit" class="btn btn-danger btn-sm">Logout</button>
-                </form>
-            </div>
+    <nav class="navbar navbar-dark bg-dark px-4 mb-4">
+        <a class="navbar-brand fw-bold" href="{{ route('owner.dashboard') }}">Aqualine Owner Portal ({{ Auth::user()->full_name }})</a>
+        <div class="d-flex gap-2">
+            <a href="{{ route('owner.dashboard') }}" class="btn btn-outline-light btn-sm">&larr; Owner Dashboard</a>
+            <form method="POST" action="{{ route('logout') }}" class="m-0">
+                @csrf
+                <button type="submit" class="btn btn-outline-light btn-sm">Log out</button>
+            </form>
         </div>
     </nav>
 
     <div class="container pb-5">
         @if (session('success'))
-            <div class="alert alert-success alert-dismissible fade show" role="alert">
-                {{ session('success') }}
-                <button type="button" class="btn-close" data-bs-dismiss="alert" aria-label="Close"></button>
-            </div>
+            <div class="alert alert-success">{{ session('success') }}</div>
         @endif
 
         @if ($errors->any())
-            <div class="alert alert-danger alert-dismissible fade show" role="alert">
+            <div class="alert alert-danger">
                 <ul class="mb-0">
-                    @foreach ($errors->all() as $error)
-                        <li>{{ $error }}</li>
+                    @foreach ($errors->all() as $err)
+                        <li>{{ $err }}</li>
                     @endforeach
                 </ul>
-                <button type="button" class="btn-close" data-bs-dismiss="alert" aria-label="Close"></button>
             </div>
         @endif
 
+        <div class="alert alert-info py-2 small">
+            <strong>Single-Owner Policy:</strong> Only <strong>1</strong> owner account is allowed in the system (currently <strong>{{ $ownerCount }}</strong> owner record(s)). Any extra owner account is blocked from logging in and can be deleted here.
+        </div>
+
         <div class="row g-4">
-            <!-- Create Staff or Owner Form -->
+            <!-- Add Account -->
             <div class="col-lg-4">
                 <div class="card shadow-sm">
-                    <div class="card-header bg-white fw-bold">
-                        Add Staff or Owner Account
-                    </div>
+                    <div class="card-header bg-white fw-bold">Add Staff or Customer Account</div>
                     <div class="card-body">
-                        <form action="{{ route('owner.staff.store') }}" method="POST">
+                        <form method="POST" action="{{ route('owner.staff.store') }}">
                             @csrf
-
-                            <div class="mb-3">
-                                <label for="full_name" class="form-label">Full Name</label>
-                                <input type="text" name="full_name" id="full_name" class="form-control"
-                                       value="{{ old('full_name') }}" placeholder="e.g. Grace Wanjiku" required>
+                            <div class="mb-2">
+                                <label class="form-label">Full Name</label>
+                                <input type="text" name="full_name" class="form-control" value="{{ old('full_name') }}" required>
                             </div>
-
-                            <div class="mb-3">
-                                <label for="role" class="form-label">Account Role</label>
-                                <select name="role" id="role" class="form-select" required>
-                                    <option value="staff" {{ old('role', 'staff') === 'staff' ? 'selected' : '' }}>Staff (Counter Operations)</option>
-                                    <option value="owner" {{ old('role') === 'owner' ? 'selected' : '' }}>Owner (Full Management)</option>
+                            <div class="mb-2">
+                                <label class="form-label">Account Role</label>
+                                <select name="role" class="form-select" required>
+                                    <option value="staff" {{ old('role') === 'staff' ? 'selected' : '' }}>Staff (Counter Operations)</option>
+                                    <option value="customer" {{ old('role') === 'customer' ? 'selected' : '' }}>Customer</option>
+                                    @if (($ownerCount ?? 0) < 1)
+                                        <option value="owner" {{ old('role') === 'owner' ? 'selected' : '' }}>Owner</option>
+                                    @endif
                                 </select>
                             </div>
-
-                            @if ($hasUsername)
-                                <div class="mb-3">
-                                    <label for="username" class="form-label">Username</label>
-                                    <input type="text" name="username" id="username" class="form-control"
-                                           value="{{ old('username') }}" placeholder="e.g. grace_owner" required>
-                                </div>
-                            @endif
-
-                            @if ($phoneCol)
-                                <div class="mb-3">
-                                    <label for="phone" class="form-label">Phone Number</label>
-                                    <input type="text" name="phone" id="phone" class="form-control"
-                                           value="{{ old('phone') }}" placeholder="e.g. 0712345678" required>
-                                </div>
-                            @endif
-
-                            @if ($hasEmail)
-                                <div class="mb-3">
-                                    <label for="email" class="form-label">Email <span class="text-muted small">(Optional)</span></label>
-                                    <input type="email" name="email" id="email" class="form-control"
-                                           value="{{ old('email') }}" placeholder="name@aqualine.co.ke">
-                                </div>
-                            @endif
-
-                            <div class="mb-3">
-                                <label for="password" class="form-label">Initial Password</label>
-                                <input type="password" name="password" id="password" class="form-control"
-                                       minlength="6" placeholder="Minimum 6 characters" required>
+                            <div class="mb-2">
+                                <label class="form-label">Username</label>
+                                <input type="text" name="username" class="form-control" value="{{ old('username') }}" required>
                             </div>
-
+                            <div class="mb-2">
+                                <label class="form-label">Phone Number</label>
+                                <input type="text" name="phone" class="form-control" value="{{ old('phone') }}" required>
+                            </div>
+                            <div class="mb-2">
+                                <label class="form-label">Email (Optional)</label>
+                                <input type="email" name="email" class="form-control" value="{{ old('email') }}">
+                            </div>
+                            <div class="mb-3">
+                                <label class="form-label">Initial Password</label>
+                                <input type="password" name="password" class="form-control" required>
+                            </div>
                             <button type="submit" class="btn btn-primary w-100">Create Account</button>
                         </form>
                     </div>
                 </div>
             </div>
 
-            <!-- Accounts List Table -->
+<div class="mb-2">
+    <label class="form-label" id="owner-username-label">Username</label>
+    <input type="text" name="username" id="owner-username-input" class="form-control"
+           value="{{ old('username') }}" placeholder="Required for staff; optional for customer" required>
+</div>
+
+            <!-- All Accounts (Owner, Staff, Customers) -->
             <div class="col-lg-8">
                 <div class="card shadow-sm">
-                    <div class="card-header bg-white d-flex justify-content-between align-items-center">
-                        <span class="fw-bold">Staff &amp; Owner Accounts ({{ $accounts->count() }})</span>
-                    </div>
+                    <div class="card-header bg-white fw-bold">All System Accounts ({{ $accounts->count() }})</div>
                     <div class="table-responsive">
                         <table class="table table-hover align-middle mb-0">
                             <thead class="table-light">
@@ -121,73 +104,67 @@
                                 </tr>
                             </thead>
                             <tbody>
-                                @forelse ($accounts as $account)
+                                @foreach ($accounts as $acc)
                                     @php
-                                        $isActive = $activeCol === 'is_active'
-                                            ? (bool) $account->is_active
-                                            : ($activeCol === 'status' ? strtolower((string) $account->status) === 'active' : true);
-                                        $isCurrentUser = (int) $account->user_id === (int) auth()->id();
+                                        $isSelf = (int) $acc->user_id === (int) (Auth::user()->user_id ?? 0);
+                                        $roleBadge = match ($acc->role) {
+                                            'owner' => 'bg-dark',
+                                            'staff' => 'bg-secondary',
+                                            default => 'bg-info text-dark',
+                                        };
                                     @endphp
                                     <tr>
-                                        <td>{{ $account->user_id }}</td>
-                                        <td class="fw-semibold">
-                                            {{ $account->full_name }}
-                                            @if ($isCurrentUser)
-                                                <span class="badge bg-info text-dark ms-1">You</span>
+                                        <td>{{ $acc->user_id }}</td>
+                                        <td>
+                                            <div class="fw-semibold">{{ $acc->full_name }}</div>
+                                            @if ($isSelf)
+                                                <span class="badge bg-primary">You</span>
                                             @endif
                                         </td>
                                         <td class="small">
-                                            @if ($hasUsername && !empty($account->username))
-                                                <div><strong>User:</strong> {{ $account->username }}</div>
-                                            @endif
-                                            @if ($phoneCol && !empty($account->{$phoneCol}))
-                                                <div><strong>Phone:</strong> {{ $account->{$phoneCol} }}</div>
-                                            @endif
-                                            @if ($hasEmail && !empty($account->email))
-                                                <div class="text-muted">{{ $account->email }}</div>
+                                            <div>User: {{ $acc->username ?? '-' }}</div>
+                                            <div>Phone: {{ $acc->phone }}</div>
+                                            @if ($acc->email)
+                                                <div class="text-muted">{{ $acc->email }}</div>
                                             @endif
                                         </td>
+                                        <td><span class="badge {{ $roleBadge }} text-uppercase">{{ $acc->role }}</span></td>
                                         <td>
-                                            <span class="badge {{ $account->role === 'owner' ? 'bg-primary' : 'bg-secondary' }}">
-                                                {{ strtoupper($account->role) }}
+                                            <span class="badge {{ ($acc->status ?? 'active') === 'active' ? 'bg-success' : 'bg-danger' }} text-uppercase">
+                                                {{ $acc->status ?? 'active' }}
                                             </span>
                                         </td>
                                         <td>
-                                            <span class="badge {{ $isActive ? 'bg-success' : 'bg-danger' }}">
-                                                {{ $isActive ? 'ACTIVE' : 'INACTIVE' }}
-                                            </span>
-                                        </td>
-                                        <td>
-                                            <div class="d-flex flex-column gap-2">
-                                                @if (!$isCurrentUser && $activeCol)
-                                                    <form action="{{ route('owner.staff.toggle', $account->user_id) }}" method="POST" class="m-0">
+                                            <div class="d-flex flex-column gap-1">
+                                                @unless ($isSelf)
+                                                    <form method="POST" action="{{ route('owner.staff.toggle', $acc->user_id) }}">
                                                         @csrf
                                                         @method('PATCH')
-                                                        <button type="submit" class="btn btn-sm {{ $isActive ? 'btn-outline-danger' : 'btn-outline-success' }} w-100">
-                                                            {{ $isActive ? 'Deactivate' : 'Activate' }}
+                                                        <button type="submit" class="btn btn-sm {{ ($acc->status ?? 'active') === 'active' ? 'btn-outline-warning' : 'btn-outline-success' }} w-100">
+                                                            {{ ($acc->status ?? 'active') === 'active' ? 'Deactivate' : 'Activate' }}
                                                         </button>
                                                     </form>
-                                                @elseif ($isCurrentUser)
-                                                    <span class="text-muted small">Active Owner Session</span>
-                                                @endif
+                                                @endunless
 
-                                                <form action="{{ route('owner.staff.reset', $account->user_id) }}" method="POST" class="d-flex gap-1 m-0">
+                                                <form method="POST" action="{{ route('owner.staff.reset-password', $acc->user_id) }}" class="d-flex gap-1">
                                                     @csrf
                                                     @method('PATCH')
-                                                    <input type="text" name="new_password" class="form-control form-control-sm"
-                                                           placeholder="Default: Aqualine@123" minlength="6">
-                                                    <button type="submit" class="btn btn-sm btn-outline-warning text-dark text-nowrap">
-                                                        Reset PW
-                                                    </button>
+                                                    <input type="password" name="password" class="form-control form-control-sm" placeholder="New PW" required>
+                                                    <button type="submit" class="btn btn-sm btn-warning">Reset</button>
                                                 </form>
+
+                                                @unless ($isSelf)
+                                                    <form method="POST" action="{{ route('owner.accounts.destroy', $acc->user_id) }}"
+                                                          onsubmit="return confirm('Delete {{ $acc->role }} account for {{ addslashes($acc->full_name) }}?');">
+                                                        @csrf
+                                                        @method('DELETE')
+                                                        <button type="submit" class="btn btn-sm btn-danger w-100">Delete Account</button>
+                                                    </form>
+                                                @endunless
                                             </div>
                                         </td>
                                     </tr>
-                                @empty
-                                    <tr>
-                                        <td colspan="6" class="text-center text-muted py-4">No staff or owner accounts found.</td>
-                                    </tr>
-                                @endforelse
+                                @endforeach
                             </tbody>
                         </table>
                     </div>
@@ -195,7 +172,5 @@
             </div>
         </div>
     </div>
-
-    <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/js/bootstrap.bundle.min.js"></script>
 </body>
 </html>

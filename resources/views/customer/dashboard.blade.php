@@ -72,6 +72,9 @@
                         <a class="nav-link active fw-semibold" href="#my-orders">Check Orders &amp; Billing</a>
                     </li>
                     <li class="nav-item">
+                        <a class="nav-link" href="{{ route('customer.pickup.form') }}">Request Pickup</a>
+                    </li>
+                    <li class="nav-item">
                         <a class="nav-link" href="{{ route('customer.delivery.form') }}">Request Delivery</a>
                     </li>
                     <li class="nav-item">
@@ -124,11 +127,11 @@
                 <div class="card hub-card h-100 p-3">
                     <div class="card-body d-flex flex-column justify-content-between">
                         <div>
-                            <span class="badge bg-info text-dark mb-2">MADARAKA &amp; ENVIRONS</span>
-                            <h5 class="fw-bold" style="color: #1B4F72;">Request Pickup / Delivery</h5>
-                            <p class="text-muted small">Schedule doorstep laundry collection or delivery through our Madaraka dispatch desk.</p>
+                            <span class="badge bg-info text-dark mb-2">MADARAKA PICKUP</span>
+                            <h5 class="fw-bold" style="color: #1B4F72;">Request for Pickup</h5>
+                            <p class="text-muted small">Schedule doorstep laundry pickup through our Madaraka dispatch desk.</p>
                         </div>
-                        <a href="{{ route('customer.delivery.form') }}" class="btn btn-outline-dark btn-sm w-100 mt-2">Request a Delivery &rarr;</a>
+                        <a href="{{ route('customer.pickup.form') }}" class="btn btn-outline-dark btn-sm w-100 mt-2">Request for Pickup &rarr;</a>
                     </div>
                 </div>
             </div>
@@ -137,34 +140,134 @@
                 <div class="card hub-card h-100 p-3">
                     <div class="card-body d-flex flex-column justify-content-between">
                         <div>
-                            <span class="badge bg-secondary mb-2">LIVE PRICE LIST</span>
-                            <h5 class="fw-bold" style="color: #1B4F72;">All Laundry Services</h5>
-                            <p class="text-muted small">Browse washing, drying, ironing, folding, and dry-cleaning rates in KES.</p>
+                            <span class="badge bg-secondary mb-2">MADARAKA DELIVERY</span>
+                            <h5 class="fw-bold" style="color: #1B4F72;">Request for Delivery</h5>
+                            <p class="text-muted small">Schedule doorstep return delivery of your laundry in Madaraka &amp; environs.</p>
                         </div>
-                        <a href="#all-services" class="btn btn-outline-dark btn-sm w-100 mt-2">View Live Rates &rarr;</a>
+                        <a href="{{ route('customer.delivery.form') }}" class="btn btn-outline-dark btn-sm w-100 mt-2">Request for Delivery &rarr;</a>
                     </div>
                 </div>
             </div>
         </div>
 
-        <!-- Section 1: Check Orders, Garment Status & Billing -->
-        <section id="my-orders" class="mb-5">
-            <div class="d-flex justify-content-between align-items-center mb-3">
-                <h4 class="fw-bold mb-0" style="color: #1B4F72;">My Laundry Orders &amp; Garment Status</h4>
-                <a href="{{ route('customer.delivery.form') }}" class="btn btn-aqualine btn-sm">+ Request Delivery</a>
+        <!-- 1. Pickup Requests & 2. Delivery Requests -->
+        <div class="row g-3 mb-4">
+            <div class="col-md-6">
+                <div class="card border-0 shadow-sm h-100">
+                    <div class="card-header bg-white py-3 d-flex justify-content-between align-items-center">
+                        <span class="fw-bold" style="color: #1B4F72;">Pickup Requests ({{ count($pickupRequests ?? []) }})</span>
+                        <a href="{{ route('customer.pickup.form') }}" class="btn btn-outline-dark btn-sm">+ Request Pickup</a>
+                    </div>
+                    <div class="card-body">
+                        @if (empty($pickupRequests))
+                            <p class="text-muted small mb-0">No pickup requests submitted yet.</p>
+                        @else
+                            <div class="table-responsive">
+                                <table class="table table-sm align-middle mb-0">
+                                    <thead>
+                                        <tr>
+                                            <th>Services &amp; Qty</th>
+                                            <th>Address</th>
+                                            <th>Date</th>
+                                            <th>Status</th>
+                                        </tr>
+                                    </thead>
+                                    <tbody>
+                                        @foreach ($pickupRequests as $req)
+                                            @php
+                                                $pSt = $req['status'] ?? 'pickup_requested';
+                                                $pBadge = match ($pSt) {
+                                                    'collected'        => 'bg-success',
+                                                    'on_the_road'      => 'bg-primary',
+                                                    'arranging_pickup' => 'bg-warning text-dark',
+                                                    default            => 'bg-info text-dark',
+                                                };
+                                            @endphp
+                                            <tr>
+                                                <td class="fw-semibold">
+                                                    @if (!empty($req['items']) && is_array($req['items']))
+                                                        @foreach ($req['items'] as $it)
+                                                            <div>
+                                                                {{ $it['service'] }}
+                                                                <span class="badge bg-secondary ms-1">&times;{{ $it['quantity'] }}</span>
+                                                            </div>
+                                                        @endforeach
+                                                    @else
+                                                        {{ $req['service'] }}
+                                                        <span class="badge bg-secondary ms-1">&times;{{ $req['quantity'] ?? 1 }}</span>
+                                                    @endif
+                                                    @if (!empty($req['estimated_total']) && $req['estimated_total'] > 0)
+                                                        <div class="text-muted small fw-normal mt-1">
+                                                            Est. KES {{ number_format((float) $req['estimated_total'], 2) }}
+                                                        </div>
+                                                    @endif
+                                                </td>
+                                                <td class="small">{{ $req['pickup_address'] }}</td>
+                                                <td class="small">{{ $req['pickup_date'] }}</td>
+                                                <td><span class="badge {{ $pBadge }} text-uppercase">{{ str_replace('_', ' ', $pSt) }}</span></td>
+                                            </tr>
+                                        @endforeach
+                                    </tbody>
+                                </table>
+                            </div>
+                        @endif
+                    </div>
+                </div>
             </div>
 
+            <div class="col-md-6">
+                <div class="card border-0 shadow-sm h-100">
+                    <div class="card-header bg-white py-3 d-flex justify-content-between align-items-center">
+                        <span class="fw-bold" style="color: #1B4F72;">Delivery Requests ({{ ($deliveryRequests ?? collect())->count() }})</span>
+                        <a href="{{ route('customer.delivery.form') }}" class="btn btn-outline-dark btn-sm">+ Request Delivery</a>
+                    </div>
+                    <div class="card-body">
+                        @if (($deliveryRequests ?? collect())->isEmpty())
+                            <p class="text-muted small mb-0">No delivery requests yet.</p>
+                        @else
+                            <div class="table-responsive">
+                                <table class="table table-sm align-middle mb-0">
+                                    <thead>
+                                        <tr>
+                                            <th>Order</th>
+                                            <th>Delivery Address</th>
+                                            <th>Date</th>
+                                            <th>Status</th>
+                                        </tr>
+                                    </thead>
+                                    <tbody>
+                                        @foreach ($deliveryRequests as $dOrd)
+                                            <tr>
+                                                <td class="fw-semibold">#{{ $dOrd->order_no }}</td>
+                                                <td class="small">{{ $dOrd->delivery_address ?? '-' }}</td>
+                                                <td class="small">{{ $dOrd->delivery_date ?? '-' }}</td>
+                                                <td><span class="badge bg-warning text-dark text-uppercase">{{ $dOrd->delivery_status }}</span></td>
+                                            </tr>
+                                        @endforeach
+                                    </tbody>
+                                </table>
+                            </div>
+                        @endif
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- 3. Orders & In Progress -->
+        <section id="my-orders" class="mb-4">
+            <h4 class="fw-bold mb-3" style="color: #1B4F72;">Orders &amp; Garment Status (In Progress)</h4>
+
             @if ($orders->isEmpty())
-                <div class="card border-0 shadow-sm">
+                <div class="card border-0 shadow-sm mb-4">
                     <div class="card-body p-4">
                         <div class="alert alert-info mb-3">
-                            You do not have any laundry orders yet.
+                            You do not have any laundry orders in progress yet.
                         </div>
                         <p class="text-muted mb-3">
-                            Ready to send your laundry? Request a doorstep delivery or check our live service rates below.
+                            Ready to send your laundry? Request a doorstep pickup or check our live service rates below.
                         </p>
                         <div class="d-flex flex-wrap gap-2">
-                            <a href="{{ route('customer.delivery.form') }}" class="btn btn-aqualine">Request a Delivery</a>
+                            <a href="{{ route('customer.pickup.form') }}" class="btn btn-aqualine">Request for Pickup</a>
                             <a href="#all-services" class="btn btn-outline-dark">View All Services &amp; Rates</a>
                         </div>
                     </div>
@@ -297,7 +400,7 @@
             @endif
         </section>
 
-        <!-- Section 2: All Live Services & Rates -->
+        <!-- All Live Services & Rates -->
         <section id="all-services">
             <div class="d-flex flex-wrap justify-content-between align-items-center gap-2 mb-3">
                 <div>
@@ -329,8 +432,8 @@
                                         KES {{ number_format((float) $srv->unit_price, 2) }}
                                     </td>
                                     <td class="text-center">
-                                        <a href="{{ route('customer.delivery.form') }}" class="btn btn-aqualine btn-sm">
-                                            Request Delivery
+                                        <a href="{{ route('customer.pickup.form', ['service' => $srv->service_name]) }}" class="btn btn-aqualine btn-sm">
+                                            Request Pickup
                                         </a>
                                     </td>
                                 </tr>

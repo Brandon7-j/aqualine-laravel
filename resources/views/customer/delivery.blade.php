@@ -67,20 +67,25 @@
                     <div class="card-body">
                         @if ($orders->isEmpty())
                             <div class="alert alert-info mb-3">
-                                You do not currently have any order
+                                You do not currently have any order in the system to deliver.
                             </div>
                             <p class="text-muted small mb-3">
-                                Once counter staff logs your laundry order, you can select it here to request doorstep delivery.
+                                Need us to collect laundry from your doorstep first? Submit a pickup request instead, or return once counter staff logs your order.
                             </p>
-                            <a href="{{ route('customer.dashboard') }}" class="btn btn-accent">
-                                &larr; Return to Customer Dashboard
-                            </a>
+                            <div class="d-flex flex-wrap gap-2">
+                                <a href="{{ route('customer.pickup.form') }}" class="btn btn-accent">
+                                    Request for Pickup &rarr;
+                                </a>
+                                <a href="{{ route('customer.dashboard') }}" class="btn btn-outline-dark">
+                                    &larr; Back to Dashboard
+                                </a>
+                            </div>
                         @else
                             <form action="{{ route('customer.delivery.store') }}" method="POST">
                                 @csrf
 
                                 <div class="mb-3">
-                                    <label for="order_no" class="form-label fw-semibold">Select Order</label>
+                                    <label for="order_no" class="form-label fw-semibold">Select Order in System</label>
                                     <select name="order_no" id="order_no" class="form-select" required>
                                         @foreach ($orders as $order)
                                             <option value="{{ $order->order_no }}" {{ (string) old('order_no') === (string) $order->order_no ? 'selected' : '' }}>
@@ -153,7 +158,7 @@
                                     </tr>
                                 @empty
                                     <tr>
-                                        <td colspan="3" class="text-center text-muted py-4">You do not currently have any order</td>
+                                        <td colspan="3" class="text-center text-muted py-4">No orders logged in the system yet.</td>
                                     </tr>
                                 @endforelse
                             </tbody>

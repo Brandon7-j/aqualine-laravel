@@ -34,24 +34,34 @@ Route::middleware(['auth', 'role:owner'])->prefix('owner')->name('owner.')->grou
     Route::post('/services', [OwnerReportController::class, 'storeService'])->name('services.store');
     Route::put('/services/{serviceId}', [OwnerReportController::class, 'updateService'])->name('services.update');
 
-    // Staff Account Management
+    // Staff & Account Management
     Route::get('/staff', [AccountManagementController::class, 'index'])->name('staff.index');
     Route::post('/staff', [AccountManagementController::class, 'storeStaff'])->name('staff.store');
     Route::patch('/staff/{userId}/toggle', [AccountManagementController::class, 'toggleStaffStatus'])->name('staff.toggle');
     Route::patch('/staff/{userId}/reset-password', [AccountManagementController::class, 'resetStaffPassword'])->name('staff.reset-password');
     Route::patch('/staff/{userId}/reset', [AccountManagementController::class, 'resetStaffPassword'])->name('staff.reset');
+    Route::delete('/accounts/{userId}', [AccountManagementController::class, 'destroyAccount'])->name('accounts.destroy');
 });
 
 // Staff Portal Routes
 Route::middleware(['auth', 'role:staff'])->prefix('staff')->name('staff.')->group(function () {
     Route::get('/dashboard', [StaffOrderController::class, 'dashboard'])->name('dashboard');
+  
+// Order Intake & Garment Status Workflow
+    Route::post('/orders', [StaffOrderController::class, 'storeOrder'])->name('orders.store');
+    Route::delete('/orders/{orderId}', [StaffOrderController::class, 'destroyOrder'])->name('orders.destroy');
+    Route::patch('/garments/{garmentId}/status', [TrackingController::class, 'updateGarmentStatus'])->name('garments.status');
 
     // Customer Management
     Route::get('/customers/{userId}', [StaffOrderController::class, 'showCustomer'])->name('customers.show');
     Route::post('/customers', [StaffOrderController::class, 'storeCustomer'])->name('customers.store');
     Route::put('/customers/{userId}', [StaffOrderController::class, 'updateCustomer'])->name('customers.update');
+    Route::delete('/customers/{userId}', [StaffOrderController::class, 'destroyCustomer'])->name('customers.destroy');
     Route::patch('/customers/{userId}/reset-password', [StaffOrderController::class, 'resetCustomerPassword'])->name('customers.reset-password');
     Route::patch('/customers/{userId}/reset', [StaffOrderController::class, 'resetCustomerPassword'])->name('customers.reset');
+
+    // Pickup Request Confirmation & Status Workflow
+    Route::patch('/pickups/{pickupId}/status', [TrackingController::class, 'updatePickupStatus'])->name('pickups.status');
 
     // Order Intake & Garment Status Workflow
     Route::post('/orders', [StaffOrderController::class, 'storeOrder'])->name('orders.store');
@@ -62,6 +72,7 @@ Route::middleware(['auth', 'role:staff'])->prefix('staff')->name('staff.')->grou
     Route::post('/orders/{orderId}/bills/generate', [BillingController::class, 'generateBill'])->name('bills.generate');
     Route::post('/bills/{billId}/pay', [BillingController::class, 'recordPayment'])->name('bills.pay');
     Route::post('/bills/{billId}/payments', [BillingController::class, 'recordPayment'])->name('payments.store');
+    Route::delete('/payments/{paymentId}', [BillingController::class, 'destroyPayment'])->name('payments.destroy');
     Route::post('/bills/{billId}/mpesa-stk', [MpesaController::class, 'stkPush'])->name('mpesa.stk');
     Route::post('/bills/{billId}/mpesa', [MpesaController::class, 'stkPush'])->name('mpesa.stk-push');
     Route::get('/receipts/{receiptId}', [BillingController::class, 'showReceipt'])->name('receipts.show');
@@ -70,6 +81,8 @@ Route::middleware(['auth', 'role:staff'])->prefix('staff')->name('staff.')->grou
 // Customer Portal Routes
 Route::middleware(['auth', 'role:customer'])->prefix('customer')->name('customer.')->group(function () {
     Route::get('/dashboard', [TrackingController::class, 'customerDashboard'])->name('dashboard');
+    Route::get('/pickup', [TrackingController::class, 'pickupForm'])->name('pickup.form');
+    Route::post('/pickup', [TrackingController::class, 'storePickup'])->name('pickup.store');
     Route::get('/delivery', [TrackingController::class, 'deliveryForm'])->name('delivery.form');
     Route::post('/delivery', [TrackingController::class, 'storeDelivery'])->name('delivery.store');
     Route::post('/bills/{billId}/mpesa-stk', [MpesaController::class, 'stkPush'])->name('mpesa.stk');
